@@ -30,14 +30,20 @@ app.post('/createUser', function(req, res) {
   connection.query(query_str, function (error, results, fields) {
     if (error) {
       if (error.code === 'ER_DUP_ENTRY') {
-        res.status(500).send('This email is already in use.');
+        res.status(500).send({'error' : 'This email is already in use.'});
         console.log('Email already used: ' + email);
       } else {
-        res.status(500).send('Error: ' + error.code);
+        res.status(500).send({'error' : 'Error: ' + error.code});
         console.log('Error: ' + error.code);
       }
     } else {
-      res.send('Successfully Added User');
+      var query_str = "SELECT id FROM Users WHERE (email = '" + email + "');"
+      connection.query(query_str, function (error, results, fields) {
+        if (error) {
+          res.send({'error' : 'Error: ' + error.code});
+        } else {
+          res.send({'id' : results[0]['id']});
+        }
       console.log('Added user with email: ' + email);
     }
   });
@@ -51,20 +57,20 @@ app.post('/createSession', function(req, res) {
   connection.query(query_str, function (error, results, fields) {
     if (error) {
       if (error.code === 'ER_DUP_ENTRY') {
-        res.status(500).send('This email is already in use.');
+        res.status(500).send({'error' : 'This email is already in use.'});
         console.log('Email already used: ' + email);
       } else {
-        res.status(500).send('Error: ' + error.code);
+        res.status(500).send({'error' : 'Error: ' + error.code});
         console.log('Error: ' + error.code);
       }
     } else if (results.length === 0) {
-      res.status(500).send('This email has not been registered.');
+      res.status(500).send({'error' : 'This email has not been registered.'});
     } else if (results[0]['password'] === password) {
       var token = jwt.sign({id: results[0]['id']}, secret);
-      res.send(token);
+      res.send({'token' : token, 'id' : results[0]['id']});
       console.log('Logged in user with email: ' + email);
     } else {
-      res.status(500).send('Email and password do not match.');
+      res.status(500).send({'error' : 'Email and password do not match.'});
     }
   });
 })
@@ -79,35 +85,24 @@ app.post('/addHouse', function(req, res) {
     return
   }
 
-  console.log(decoded);
-
-  // User Information
-  // var user_id = req.query.user_id;
-
-  // House Information
-  var address = req.query.address;
-
-  // var location = req.query.location;
-  var image = req.query.image;
-
-  // var categories = req.query.categories;
+  var address = req.body['address'];
+  var user_id = req.body['id'];
 
   // execute query
-  var query_str = "INSERT INTO Houses (hid, address) VALUES('" + user_id + "', '" + address + "');"
+  var query_str = "INSERT INTO Houses (address) VALUES('" + address + "'); SELECT LAST_INSERT_ID();"
   connection.query(query_str, function (error, results, fields) {
     if (error) {
-      res.status(500).send('Error: ' + error.code);
+      res.status(500).send({'error' : 'Error: ' + error.code});
       console.log('Error: ' + error.code);
     } else {
-      res.send('Successfully Added House!');
-      res.send('Successfully Added House');
+      res.send({'hid' : results[0]['hid'], 'address' : '12345'});
       console.log('Added House with address: ' + address);
     }
   });
 })
 
 // Remove house from the user's house-list
-app.delete('/deleteHouse', function(req, res) {
+app.post('/deleteHouse', function(req, res) {
   var user_id = req.query.user_id;
   var house_id = req.query.user_id;
   var query_str = "DELETE FROM Houses WHERE (house_id = '" + house_id + "');"
@@ -124,12 +119,12 @@ app.delete('/deleteHouse', function(req, res) {
 
 
 // Logout a user and mark their session token as 'inactive'
-app.delete('/logout', function(req,res) {
+app.post('/logout', function(req,res) {
   //code
 })
 
 // Remove user from the database
-app.delete('/deleteUser', function (req, res) {
+app.post('/deleteUser', function (req, res) {
   var user_id = req.query.user_id;
   var query_str = "DELETE FROM Users WHERE (user_id = '" + user_id + "');"
   connection.query(query_str, function(error, results, fields) {
