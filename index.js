@@ -100,10 +100,28 @@ app.post('/addHouse', function(req, res) {
       console.log('Error: ' + error.code);
     } else {
       res.send('Successfully Added House!');
+      res.send('Successfully Added House');
       console.log('Added House with address: ' + address);
     }
   });
 })
+
+// Remove house from the user's house-list
+app.delete('/deleteHouse', function(req, res) {
+  var user_id = req.query.user_id;
+  var house_id = req.query.user_id;
+  var query_str = "DELETE FROM Houses WHERE (house_id = '" + house_id + "');"
+  connection.query(query_str, function(error, results, fields){
+    if (error) {
+      res.status(500).send('Error: ' + error.code);
+      console.log('Error: ' + error.code);
+    } else {
+      res.send('Successfully Removed House');
+      console.console.log('Removed House from List: ' + house_id);
+    }
+  });
+})
+
 
 // Logout a user and mark their session token as 'inactive'
 app.delete('/logout', function(req,res) {
@@ -112,8 +130,18 @@ app.delete('/logout', function(req,res) {
 
 // Remove user from the database
 app.delete('/deleteUser', function (req, res) {
-  //code
-})
+  var user_id = req.query.user_id;
+  var query_str = "DELETE FROM Users WHERE (user_id = '" + user_id + "');"
+  connection.query(query_str, function(error, results, fields) {
+    if (error) {
+      res.status(500).send('Error: ' + error.code);
+      console.log('Error: ' + error.code);
+    } else {
+      res.send('Successfully Removed User');
+      console.log('Removed User from the HouseKeeper Database: ' + user_id);
+    }
+  });
+});
 
 
 connection.connect();
