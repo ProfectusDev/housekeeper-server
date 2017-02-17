@@ -72,11 +72,16 @@ app.post('/api/login', function(req, res) {
 
 // add a House object to the user profile
 app.post('/api/addHouse', function(req, res) {
-  var token = req.body['token'];
+  var token = req.get['Authorization'].substr(7);
+  if (token != null && token.length > 7) {
+    token = token.substr(7);
+  }
+  console.log(token);
   try {
     var decoded = jwt.verify(token, secret);
   } catch(err) {
     console.log('Invalid token attempted.');
+    res.status(403).send('Forbidden.')
     return
   }
 
@@ -90,7 +95,7 @@ app.post('/api/addHouse', function(req, res) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
-      res.send({'hid' : results[0]['hid'], 'address' : '12345'});
+      res.send({'hid' : results[0]['SELECT LAST_INSERT_ID()'], 'address' : '12345'});
       console.log('Added House with address: ' + address);
     }
   });
