@@ -72,7 +72,7 @@ app.post('/api/login', function(req, res) {
 
 // add a House object to the user profile
 app.post('/api/addHouse', function(req, res) {
-  var token = req.get['Authorization'].substr(7);
+  var token = req.get['Authorization'];
   if (token != null && token.length > 7) {
     token = token.substr(7);
   }
