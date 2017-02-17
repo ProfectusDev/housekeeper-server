@@ -142,8 +142,9 @@ app.post('/api/getHouses' , function(req, res) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
+    } else if (results.length == 0) {
+      res.send([]);
     } else {
-      console.log(results);
       var hid = results[0]['hid'];
       query_str = "SELECT * FROM Houses WHERE hid IN(";
       for (var i = 0; i < results.length; i++) {
@@ -156,7 +157,6 @@ app.post('/api/getHouses' , function(req, res) {
           res.status(500).send('Error: ' + error.code);
           console.log('Error: ' + error.code);
         } else {
-          console.log(results);
           res.send(results);
         }
       });
