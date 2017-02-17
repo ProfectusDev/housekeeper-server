@@ -22,6 +22,21 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 var secret = process.env.JWT_SECRET;
 
+function validateToken(authHeader) {
+  var token = ''
+  if (authHeader != null && authHeader.length > 7) {
+    token = authHeader.substr(7);
+  }
+  console.log(authHeader);
+  try {
+    var decoded = jwt.verify(token, secret);
+  } catch(err) {
+    console.log('Invalid token attempted.');
+    return false;
+  }
+  return true;
+}
+
 // Create new user and add to the database
 app.post('/api/register', function(req, res) {
   var email = req.body['email'];
@@ -72,18 +87,12 @@ app.post('/api/login', function(req, res) {
 
 // add a House object to the user profile
 app.post('/api/addHouse', function(req, res) {
-  var token = req.get['Authorization'];
-  if (token != null && token.length > 7) {
-    token = token.substr(7);
-  }
-  console.log(token);
-  try {
-    var decoded = jwt.verify(token, secret);
-  } catch(err) {
-    console.log('Invalid token attempted.');
-    res.status(403).send('Forbidden.')
-    return
-  }
+  var authHeader = req.get['Authorization'];
+  var isValidToken = validateToken(authHeader);
+  // if (!isValidToken) {
+  //   res.status(403).send('Forbidden.');
+  //   return;
+  // }
 
   var address = req.body['address'];
   var user_id = req.body['id'];
