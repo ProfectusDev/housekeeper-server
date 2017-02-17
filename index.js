@@ -27,11 +27,11 @@ function validateToken(authHeader) {
   if (authHeader != null && authHeader.length > 7) {
     token = authHeader.substr(7);
   }
-  console.log(authHeader);
+  // console.log(authHeader);
   try {
     var decoded = jwt.verify(token, secret);
   } catch(err) {
-    console.log('Invalid token attempted.');
+    // console.log('Invalid token attempted.');
     return false;
   }
   return true;
@@ -98,17 +98,71 @@ app.post('/api/addHouse', function(req, res) {
   var user_id = req.body['id'];
 
   // execute query
-  var query_str = "INSERT INTO Houses (address) VALUES('" + address + "'); SELECT LAST_INSERT_ID();"
+  var query_str = "INSERT INTO Houses (address) VALUES('" + address + "');";
   connection.query(query_str, function (error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
-      res.send({'hid' : results[0]['SELECT LAST_INSERT_ID()'], 'address' : '12345'});
-      console.log('Added House with address: ' + address);
+      query_str = "SELECT LAST_INSERT_ID();"
+      connection.query(query_str, function (error, results, fields) {
+        if (error) {
+          res.status(500).send('Error: ' + error.code);
+          console.log('Error: ' + error.code);
+        } else {
+          var hid = results[0]['LAST_INSERT_ID()'];
+          query_str = "INSERT INTO UserHouseRelationship (id, hid) VALUES('" + user_id + "','" + hid + "');";
+          connection.query(query_str, function (error, results, fields) {
+            if (error) {
+              res.status(500).send('Error: ' + error.code);
+              console.log('Error: ' + error.code);
+            } else {
+              res.send('House added.');
+              console.log('Added House with address: ' + address);
+            }
+          });
+        }
+      });
     }
   });
-})
+});
+
+app.post('/api/getHouses' , function(req, res) {
+  var authHeader = req.get['Authorization'];
+  var isValidToken = validateToken(authHeader);
+  // if (!isValidToken) {
+  //   res.status(403).send('Forbidden.');
+  //   return;
+  // }
+
+  var user_id = req.body['id'];
+
+  var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = '" + user_id + "');";
+  connection.query(query_str, function (error, results, fields) {
+    if (error) {
+      res.status(500).send('Error: ' + error.code);
+      console.log('Error: ' + error.code);
+    } else {
+      console.log(results);
+      var hid = results[0]['hid'];
+      query_str = "SELECT * FROM Houses WHERE hid IN(";
+      for (var i = 0; i < results.length; i++) {
+        var hid = results[i]['hid'];
+        query_str += ("'" + hid + "',");
+      }
+      query_str = query_str.substr(0, query_str.length - 1) + ");";
+      connection.query(query_str, function (error, results, fields) {
+        if (error) {
+          res.status(500).send('Error: ' + error.code);
+          console.log('Error: ' + error.code);
+        } else {
+          console.log(results);
+          res.send(results);
+        }
+      });
+    }
+  });
+});
 
 // Remove house from the user's house-list
 app.post('/api/deleteHouse', function(req, res) {
