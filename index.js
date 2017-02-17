@@ -23,60 +23,55 @@ app.use(bodyParser.urlencoded({ extended: true }));
 var secret = process.env.JWT_SECRET;
 
 // Create new user and add to the database
-app.post('/createUser', function(req, res) {
+app.post('/api/register', function(req, res) {
   var email = req.body['email'];
-  var password = req.body.['password'];
+  var password = req.body['password'];
   var query_str = "INSERT INTO Users (email, password) VALUES ('" + email + "', '" + password + "');"
   connection.query(query_str, function (error, results, fields) {
     if (error) {
       if (error.code === 'ER_DUP_ENTRY') {
-        res.status(500).send({'error' : 'This email is already in use.'});
+        res.status(500).send('This email is already in use.');
         console.log('Email already used: ' + email);
       } else {
-        res.status(500).send({'error' : 'Error: ' + error.code});
+        res.status(500).send('Error: ' + error.code);
         console.log('Error: ' + error.code);
       }
     } else {
-      var query_str = "SELECT id FROM Users WHERE (email = '" + email + "');"
-      connection.query(query_str, function (error, results, fields) {
-        if (error) {
-          res.send({'error' : 'Error: ' + error.code});
-        } else {
-          res.send({'id' : results[0]['id']});
-        }
       console.log('Added user with email: ' + email);
+      query_str = "SELECT LAST_INSERT_ID();"
+      connection.query(query_str, function (error, results, fields) {
+        var token = jwt.sign({}, secret);
+        var id = results[0]['LAST_INSERT_ID()'];
+        res.send({'token': token, 'id' : id});
+      });
     }
   });
-})
+});
 
 // Login a user and create a session token
-app.post('/createSession', function(req, res) {
+app.post('/api/login', function(req, res) {
   var email = req.body['email'];
   var password = req.body['password'];
   var query_str = "SELECT id, password FROM Users WHERE (email = '" + email + "');"
   connection.query(query_str, function (error, results, fields) {
     if (error) {
-      if (error.code === 'ER_DUP_ENTRY') {
-        res.status(500).send({'error' : 'This email is already in use.'});
-        console.log('Email already used: ' + email);
-      } else {
-        res.status(500).send({'error' : 'Error: ' + error.code});
-        console.log('Error: ' + error.code);
-      }
+      res.status(500).send('Error: ' + error.code);
+      console.log('Error: ' + error.code);
     } else if (results.length === 0) {
-      res.status(500).send({'error' : 'This email has not been registered.'});
+      res.status(500).send('This email has not been registered.');
     } else if (results[0]['password'] === password) {
-      var token = jwt.sign({id: results[0]['id']}, secret);
-      res.send({'token' : token, 'id' : results[0]['id']});
+      var token = jwt.sign({}, secret);
+      var id = results[0]['id']
+      res.send({'token' : token, 'id' : id});
       console.log('Logged in user with email: ' + email);
     } else {
-      res.status(500).send({'error' : 'Email and password do not match.'});
+      res.status(500).send('Email and password do not match.');
     }
   });
 })
 
 // add a House object to the user profile
-app.post('/addHouse', function(req, res) {
+app.post('/api/addHouse', function(req, res) {
   var token = req.body['token'];
   try {
     var decoded = jwt.verify(token, secret);
@@ -92,7 +87,7 @@ app.post('/addHouse', function(req, res) {
   var query_str = "INSERT INTO Houses (address) VALUES('" + address + "'); SELECT LAST_INSERT_ID();"
   connection.query(query_str, function (error, results, fields) {
     if (error) {
-      res.status(500).send({'error' : 'Error: ' + error.code});
+      res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
       res.send({'hid' : results[0]['hid'], 'address' : '12345'});
@@ -102,7 +97,7 @@ app.post('/addHouse', function(req, res) {
 })
 
 // Remove house from the user's house-list
-app.post('/deleteHouse', function(req, res) {
+app.post('/api/deleteHouse', function(req, res) {
   var user_id = req.query.user_id;
   var house_id = req.query.user_id;
   var query_str = "DELETE FROM Houses WHERE (house_id = '" + house_id + "');"
@@ -119,12 +114,12 @@ app.post('/deleteHouse', function(req, res) {
 
 
 // Logout a user and mark their session token as 'inactive'
-app.post('/logout', function(req,res) {
+app.post('/api/logout', function(req,res) {
   //code
 })
 
 // Remove user from the database
-app.post('/deleteUser', function (req, res) {
+app.post('/api/deleteUser', function (req, res) {
   var user_id = req.query.user_id;
   var query_str = "DELETE FROM Users WHERE (user_id = '" + user_id + "');"
   connection.query(query_str, function(error, results, fields) {
