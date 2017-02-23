@@ -22,16 +22,15 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 var secret = process.env.JWT_SECRET;
 
-function validateToken(authHeader) {
+function isValidToken(authHeader) {
   var token = ''
   if (authHeader != null && authHeader.length > 7) {
     token = authHeader.substr(7);
   }
-  // console.log(authHeader);
   try {
     var decoded = jwt.verify(token, secret);
   } catch(err) {
-    // console.log('Invalid token attempted.');
+    console.log('Invalid token attempted.');
     return false;
   }
   return true;
@@ -87,17 +86,15 @@ app.post('/api/login', function(req, res) {
 
 // add a House object to the user profile
 app.post('/api/addHouse', function(req, res) {
-  var authHeader = req.get['Authorization'];
-  var isValidToken = validateToken(authHeader);
-  // if (!isValidToken) {
-  //   res.status(403).send('Forbidden.');
-  //   return;
-  // }
+  var authHeader = req.headers.authorization;
+  if (!isValidToken(authHeader)) {
+    res.status(403).send('Forbidden.');
+    return;
+  }
 
   var address = req.body['address'];
   var user_id = req.body['id'];
 
-  // execute query
   var query_str = "INSERT INTO Houses (address) VALUES('" + address + "');";
   connection.query(query_str, function (error, results, fields) {
     if (error) {
@@ -128,12 +125,11 @@ app.post('/api/addHouse', function(req, res) {
 });
 
 app.post('/api/getHouses' , function(req, res) {
-  var authHeader = req.get['Authorization'];
-  var isValidToken = validateToken(authHeader);
-  // if (!isValidToken) {
-  //   res.status(403).send('Forbidden.');
-  //   return;
-  // }
+  var authHeader = req.headers.authorization;
+  if (!isValidToken(authHeader)) {
+    res.status(403).send('Forbidden.');
+    return;
+  }
 
   var user_id = req.body['id'];
 
