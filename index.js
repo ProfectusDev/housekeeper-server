@@ -4,7 +4,7 @@
 // Contact them for Questions
 
 var express = require('express');
-var mysql      = require('mysql');
+var mysql = require('mysql');
 var jwt = require('jsonwebtoken');
 var bodyParser = require('body-parser');
 
@@ -162,8 +162,7 @@ app.post('/api/getHouses' , function(req, res) {
 
 // Remove house from the user's house-list
 app.post('/api/deleteHouse', function(req, res) {
-  var user_id = req.query.user_id;
-  var house_id = req.query.user_id;
+  var house_id = req.body["hid"];
   var query_str = "DELETE FROM Houses WHERE (house_id = '" + house_id + "');"
   connection.query(query_str, function(error, results, fields){
     if (error) {
@@ -182,10 +181,11 @@ app.post('/api/logout', function(req,res) {
   //code
 })
 
+
 // Remove user from the database
 app.post('/api/deleteUser', function (req, res) {
-  var user_id = req.query.user_id;
-  var query_str = "DELETE FROM Users WHERE (user_id = '" + user_id + "');"
+  var user_id = req.body["id"];
+  var query_str = "DELETE FROM Users WHERE (id = '" + user_id + "');"
   connection.query(query_str, function(error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
