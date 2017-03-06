@@ -22,18 +22,18 @@ app.use(bodyParser.urlencoded({ extended: true }));
 
 var secret = process.env.JWT_SECRET;
 
-function decodeToken(authHeader) {
+function isValidToken(authHeader) {
   var token = ''
   if (authHeader != null && authHeader.length > 7) {
     token = authHeader.substr(7);
   }
   try {
     var decoded = jwt.verify(token, secret);
-    return decoded;
   } catch(err) {
     console.log('Invalid token attempted.');
-    return null;
+    return false;
   }
+  return true;
 }
 
 // Create new user and add to the database
@@ -54,11 +54,9 @@ app.post('/api/register', function(req, res) {
       console.log('Added user with email: ' + email);
       query_str = "SELECT LAST_INSERT_ID();"
       connection.query(query_str, function (error, results, fields) {
+        var token = jwt.sign({}, secret);
         var id = results[0]['LAST_INSERT_ID()'];
-        var token = jwt.sign({
-          user_id: id
-        }, secret, {expiresIn: '1h'});
-        res.send({'token': token});
+        res.send({'token': token, 'id' : id});
       });
     }
   });
@@ -76,11 +74,9 @@ app.post('/api/login', function(req, res) {
     } else if (results.length === 0) {
       res.status(500).send('This email has not been registered.');
     } else if (results[0]['password'] === password) {
-      var id = results[0]['id'];
-      var token = jwt.sign({
-        user_id: id
-      }, secret, {expiresIn: '1h'});
-      res.send({'token' : token});
+      var token = jwt.sign({}, secret);
+      var id = results[0]['id']
+      res.send({'token' : token, 'id' : id});
       console.log('Logged in user with email: ' + email);
     } else {
       res.status(500).send('Email and password do not match.');
@@ -91,14 +87,13 @@ app.post('/api/login', function(req, res) {
 // add a House object to the user profile
 app.post('/api/addHouse', function(req, res) {
   var authHeader = req.headers.authorization;
-  var claims = decodeToken(authHeader);
-  if (claims === null) {
+  if (!isValidToken(authHeader)) {
     res.status(403).send('Forbidden.');
     return;
   }
 
   var address = req.body['address'];
-  var user_id = claims['user_id'];
+  var user_id = req.body['id'];
 
   var query_str = "INSERT INTO Houses (address) VALUES('" + address + "');";
   connection.query(query_str, function (error, results, fields) {
@@ -129,15 +124,14 @@ app.post('/api/addHouse', function(req, res) {
   });
 });
 
-app.get('/api/getHouses' , function(req, res) {
+app.post('/api/getHouses' , function(req, res) {
   var authHeader = req.headers.authorization;
-  var claims = decodeToken(authHeader);
-  if (claims === null) {
+  if (!isValidToken(authHeader)) {
     res.status(403).send('Forbidden.');
     return;
   }
 
-  var user_id = claims['user_id'];
+  var user_id = req.body['id'];
 
   var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = '" + user_id + "');";
   connection.query(query_str, function (error, results, fields) {
