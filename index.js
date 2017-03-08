@@ -10,12 +10,45 @@ var bodyParser = require('body-parser');
 
 var app = express();
 
-var connection = mysql.createConnection({
+// var connection = mysql.createConnection({
+//   host     : 'localhost',
+//   user     : 'root',
+//   password : 'jdcogsquad',
+//   database : 'Housekeeper'
+// });
+
+var db_config = {
   host     : 'localhost',
   user     : 'root',
   password : 'jdcogsquad',
   database : 'Housekeeper'
-});
+};
+
+var connection;
+
+function handleDisconnect() {
+  connection = mysql.createConnection(db_config);
+
+  // connection.connect(function(err) {
+  //   console.log(err);
+  //   if (err) {
+  //     console.log('Error when connecting to database:', err);
+  //     setTimeout(handleDisconnect, 2000);
+  //   }
+  // });
+
+  connection.on('error', function(err) {
+    console.log('Database error:', err.code);
+    if (err.code === 'PROTOCOL_CONNECTION_LOST') {
+      console.log("handle disconnect");
+      handleDisconnect();
+    } else {
+      throw err;
+    }
+  });
+}
+
+handleDisconnect();
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -168,15 +201,38 @@ app.get('/api/getHouses' , function(req, res) {
 
 // Remove house from the user's house-list
 app.post('/api/deleteHouse', function(req, res) {
+  var authHeader = req.headers.authorization;
+  var claims = decodeToken(authHeader);
+  if (claims === null) {
+    res.status(403).send('Forbidden');
+    return;
+  }
+
+  var user_id = claims['user_id'];
   var house_id = req.body["hid"];
-  var query_str = "DELETE FROM Houses WHERE (hid = '" + house_id + "');"
-  connection.query(query_str, function(error, results, fields){
+
+  // var query_str = "DELETE FROM Houses WHERE (hid = '" + house_id + "');";
+  var query_str = "DELETE FROM UserHouseRelationship WHERE (id = " + user_id + " AND hid = " + house_id + ");"
+  connection.query(query_str, function(error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
-      res.send('Successfully Removed House');
-      console.log('Removed House from List: ' + house_id);
+      if (results["affectedRows"] > 0) {
+        var query_str = "DELETE FROM Houses WHERE (hid = '" + house_id + "');";
+        connection.query(query_str, function(error, results, fields) {
+          if (error) {
+            res.status(500).send('Error: ' + error.code);
+            console.log('Error: ' + error.code);
+          } else {
+            res.send('Successfully removed house.');
+            console.log('Removed house with id: ' + house_id);
+          }
+        });
+      } else {
+        res.status(500).send('Invalid hid.');
+        console.log('Could not remove house with id: ' + house_id);
+      }
     }
   });
 })
