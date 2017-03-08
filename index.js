@@ -211,7 +211,6 @@ app.post('/api/deleteHouse', function(req, res) {
   var user_id = claims['user_id'];
   var house_id = req.body["hid"];
 
-  // var query_str = "DELETE FROM Houses WHERE (hid = '" + house_id + "');";
   var query_str = "DELETE FROM UserHouseRelationship WHERE (id = " + user_id + " AND hid = " + house_id + ");"
   connection.query(query_str, function(error, results, fields) {
     if (error) {
