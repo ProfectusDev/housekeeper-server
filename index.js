@@ -40,7 +40,6 @@ function handleDisconnect() {
   connection.on('error', function(err) {
     console.log('Database error:', err.code);
     if (err.code === 'PROTOCOL_CONNECTION_LOST') {
-      console.log("handle disconnect");
       handleDisconnect();
     } else {
       throw err;
@@ -121,7 +120,7 @@ app.post('/api/login', function(req, res) {
   });
 })
 
-// add a House object to the user profile
+// Add a House object to the user profile
 app.post('/api/addHouse', function(req, res) {
   var authHeader = req.headers.authorization;
   var claims = decodeToken(authHeader);
@@ -162,6 +161,7 @@ app.post('/api/addHouse', function(req, res) {
   });
 });
 
+// Get a list of houses of a user
 app.get('/api/getHouses' , function(req, res) {
   var authHeader = req.headers.authorization;
   var claims = decodeToken(authHeader);
@@ -235,6 +235,29 @@ app.post('/api/deleteHouse', function(req, res) {
     }
   });
 })
+
+// Get a list of criteria for a house
+app.post('/api/getCriteria', function(req, res) {
+  var authHeader = req.headers.authorization;
+  var claims = decodeToken(authHeader);
+  if (claims === null) {
+    res.status(403).send('Forbidden');
+    return;
+  }
+
+  var user_id = claims['user_id'];
+  var house_id = req.body["hid"];
+
+  var query_str = "SELECT * FROM Criteria WHERE (hid = " + house_id + " AND EXISTS(SELECT 1 FROM UserHouseRelationship WHERE (id = " + user_id + " AND hid = " + house_id + ")));"
+  connection.query(query_str, function(error, results, fields) {
+    if (error) {
+      res.status(500).send('Error: ' + error.code);
+      console.log('Error: ' + error.code);
+    } else {
+      res.send(results)
+    }
+  });
+});
 
 
 // Logout a user and mark their session token as 'inactive'
