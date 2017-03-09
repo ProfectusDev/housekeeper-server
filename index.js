@@ -84,6 +84,67 @@ app.post('/api/login', function(req, res) {
   });
 })
 
+// add a criteria object to a House
+app.post('/api/addCriterion', function(req, res) {
+  var authHeader = req.headers.authorization;
+  if (!isValidToken(authHeader)) {
+    res.status(403).send('Forbidden.');
+    return;
+  }
+
+  // Parameters for entry passed into 'req' object
+  var hid = req.body['hid'];
+  var name = req.body['name'];
+  var category = req.body['category'];
+
+  // These two MAY not be needed for this method
+  //  -included for the sake of covering all bases
+  var rating = req.body['rating'];
+  var notes = req.body['notes'];
+
+  var query_str = "INSERT INTO Criteria (hid, name, category, rating, notes) VALUES('" + hid + "','" + name + "','" + category + "','" + rating + "','" + notes + "');";
+  connection.query(query_str, function(error, results, fields){
+    if (error) {
+      res.status(500).send('Error: ' + error.code);
+      console.log('Error: ' + error.code);
+    } else {
+      res.send('Criterion added.');
+      console.log('Added Criterion to table: ' + hid + ', ' + name);
+    }
+  });
+})
+
+// Retrieve a list of criteria linked to house_id
+app.post('/api/getCriteria', function(req, res) {
+  var house_id = req.body['hid'];
+  var query_str = "SELECT * FROM Criteria WHERE (hid = '" + house_id + "');";
+  connection.query(query_str, function(error, results, fields) {
+    if (error) {
+      res.status(500).send('Error: ' + error.code);
+      console.log('Error: ' + error.code);
+    } else {
+      res.send('Successfully Retrieved Criteria');
+      console.log('Retrieved Criteria from table: ' + house_id);
+    }
+  });
+})
+
+// Remove Criterion from the Criteria table
+app.post('/api/deleteCriteria', function(req, res) {
+  var house_id = req.body['hid'];
+  var name = req.body["name"];
+  var query_str = "DELETE FROM Criteria WHERE (hid = '" + house_id + "', name = '" + name + "');";
+  connection.query(query_str, function(error, results, fields){
+    if (error) {
+      res.status(500).send('Error: ' + error.code);
+      console.log('Error: ' + error.code);
+    } else {
+      res.send('Successfully Removed Criterion');
+      console.log('Removed Criterion from table: ' + house_id+ ', ' + name);
+    }
+  });
+})
+
 // add a House object to the user profile
 app.post('/api/addHouse', function(req, res) {
   var authHeader = req.headers.authorization;
@@ -163,14 +224,14 @@ app.post('/api/getHouses' , function(req, res) {
 // Remove house from the user's house-list
 app.post('/api/deleteHouse', function(req, res) {
   var house_id = req.body["hid"];
-  var query_str = "DELETE FROM Houses WHERE (house_id = '" + house_id + "');"
+  var query_str = "DELETE FROM Houses WHERE (hid = '" + house_id + "');"
   connection.query(query_str, function(error, results, fields){
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
       res.send('Successfully Removed House');
-      console.console.log('Removed House from List: ' + house_id);
+      console.log('Removed House from List: ' + house_id);
     }
   });
 })
