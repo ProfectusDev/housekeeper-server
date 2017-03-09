@@ -10,30 +10,63 @@ var bodyParser = require('body-parser');
 
 var app = express();
 
-var connection = mysql.createConnection({
+// var connection = mysql.createConnection({
+//   host     : 'localhost',
+//   user     : 'root',
+//   password : 'jdcogsquad',
+//   database : 'Housekeeper'
+// });
+
+var db_config = {
   host     : 'localhost',
   user     : 'root',
   password : 'jdcogsquad',
   database : 'Housekeeper'
-});
+};
+
+var connection;
+
+function handleDisconnect() {
+  connection = mysql.createConnection(db_config);
+
+  // connection.connect(function(err) {
+  //   console.log(err);
+  //   if (err) {
+  //     console.log('Error when connecting to database:', err);
+  //     setTimeout(handleDisconnect, 2000);
+  //   }
+  // });
+
+  connection.on('error', function(err) {
+    console.log('Database error:', err.code);
+    if (err.code === 'PROTOCOL_CONNECTION_LOST') {
+      console.log("handle disconnect");
+      handleDisconnect();
+    } else {
+      throw err;
+    }
+  });
+}
+
+handleDisconnect();
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
 
 var secret = process.env.JWT_SECRET;
 
-function isValidToken(authHeader) {
+function decodeToken(authHeader) {
   var token = ''
   if (authHeader != null && authHeader.length > 7) {
     token = authHeader.substr(7);
   }
   try {
     var decoded = jwt.verify(token, secret);
+    return decoded;
   } catch(err) {
     console.log('Invalid token attempted.');
-    return false;
+    return null;
   }
-  return true;
 }
 
 // Create new user and add to the database
@@ -54,9 +87,11 @@ app.post('/api/register', function(req, res) {
       console.log('Added user with email: ' + email);
       query_str = "SELECT LAST_INSERT_ID();"
       connection.query(query_str, function (error, results, fields) {
-        var token = jwt.sign({}, secret);
         var id = results[0]['LAST_INSERT_ID()'];
-        res.send({'token': token, 'id' : id});
+        var token = jwt.sign({
+          user_id: id
+        }, secret, {expiresIn: '1h'});
+        res.send({'token': token});
       });
     }
   });
@@ -74,9 +109,11 @@ app.post('/api/login', function(req, res) {
     } else if (results.length === 0) {
       res.status(500).send('This email has not been registered.');
     } else if (results[0]['password'] === password) {
-      var token = jwt.sign({}, secret);
-      var id = results[0]['id']
-      res.send({'token' : token, 'id' : id});
+      var id = results[0]['id'];
+      var token = jwt.sign({
+        user_id: id
+      }, secret, {expiresIn: '1h'});
+      res.send({'token' : token});
       console.log('Logged in user with email: ' + email);
     } else {
       res.status(500).send('Email and password do not match.');
@@ -148,13 +185,14 @@ app.post('/api/deleteCriteria', function(req, res) {
 // add a House object to the user profile
 app.post('/api/addHouse', function(req, res) {
   var authHeader = req.headers.authorization;
-  if (!isValidToken(authHeader)) {
+  var claims = decodeToken(authHeader);
+  if (claims === null) {
     res.status(403).send('Forbidden.');
     return;
   }
 
   var address = req.body['address'];
-  var user_id = req.body['id'];
+  var user_id = claims['user_id'];
 
   var query_str = "INSERT INTO Houses (address) VALUES('" + address + "');";
   connection.query(query_str, function (error, results, fields) {
@@ -185,14 +223,15 @@ app.post('/api/addHouse', function(req, res) {
   });
 });
 
-app.post('/api/getHouses' , function(req, res) {
+app.get('/api/getHouses' , function(req, res) {
   var authHeader = req.headers.authorization;
-  if (!isValidToken(authHeader)) {
+  var claims = decodeToken(authHeader);
+  if (claims === null) {
     res.status(403).send('Forbidden.');
     return;
   }
 
-  var user_id = req.body['id'];
+  var user_id = claims['user_id'];
 
   var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = '" + user_id + "');";
   connection.query(query_str, function (error, results, fields) {
@@ -223,15 +262,39 @@ app.post('/api/getHouses' , function(req, res) {
 
 // Remove house from the user's house-list
 app.post('/api/deleteHouse', function(req, res) {
+  var authHeader = req.headers.authorization;
+  var claims = decodeToken(authHeader);
+  if (claims === null) {
+    res.status(403).send('Forbidden');
+    return;
+  }
+
+  var user_id = claims['user_id'];
   var house_id = req.body["hid"];
-  var query_str = "DELETE FROM Houses WHERE (hid = '" + house_id + "');"
-  connection.query(query_str, function(error, results, fields){
+
+  var query_str = "DELETE FROM UserHouseRelationship WHERE (id = " + user_id + " AND hid = " + house_id + ");"
+  connection.query(query_str, function(error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
       res.send('Successfully Removed House');
       console.log('Removed House from List: ' + house_id);
+      if (results["affectedRows"] > 0) {
+        var query_str = "DELETE FROM Houses WHERE (hid = '" + house_id + "');";
+        connection.query(query_str, function(error, results, fields) {
+          if (error) {
+            res.status(500).send('Error: ' + error.code);
+            console.log('Error: ' + error.code);
+          } else {
+            res.send('Successfully removed house.');
+            console.log('Removed house with id: ' + house_id);
+          }
+        });
+      } else {
+        res.status(500).send('Invalid hid.');
+        console.log('Could not remove house with id: ' + house_id);
+      }
     }
   });
 })

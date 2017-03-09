@@ -17,7 +17,9 @@
   "author": "@Profectus",
   "license": "ISC",
   "dependencies": {
+    "body-parser": "^1.16.1",
     "express": "^4.14.0",
+    "jsonwebtoken": "^7.3.0",
     "mysql": "^2.13.0"
   }
 }
