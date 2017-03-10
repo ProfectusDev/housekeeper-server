@@ -56,7 +56,7 @@ function decodeToken(authHeader) {
     var decoded = jwt.verify(token, secret);
     return decoded;
   } catch(err) {
-    console.log('Invalid token attempted.');
+    console.log("Invalid token attempted.");
     return null;
   }
 }
@@ -207,7 +207,7 @@ app.post('/api/deleteHouse', function(req, res) {
   }
 
   var uid = claims['uid'];
-  var hid = req.body["hid"];
+  var hid = req.body['hid'];
 
   var query_str = "DELETE FROM UserHouseRelationship WHERE (id = " + uid + " AND hid = " + hid + ");"
   connection.query(query_str, function(error, results, fields) {
@@ -239,32 +239,41 @@ app.post('/api/deleteHouse', function(req, res) {
 app.post('/api/addCriterion', function(req, res) {
   var authHeader = req.headers.authorization;
   var claims = decodeToken(authHeader);
-  if (claims === null) {
+  if (!checkClaims(claims)) {
     res.status(403).send('Forbidden.');
     return;
   }
 
-  var uid
+  var uid = claims['uid']
   var hid = req.body['hid'];
   var name = req.body['name'];
-  var category = req.body['category'];
+  // var category = req.body['category'];
 
-  // These two MAY not be needed for this method
-  //  -included for the sake of covering all bases
-  var rating = req.body['rating'];
-  var notes = req.body['notes'];
-
-  var query_str = "INSERT INTO Criteria (hid, name, category, rating, notes) VALUES('" + hid + "','" + name + "','" + category + "','" + rating + "','" + notes + "');";
-  connection.query(query_str, function(error, results, fields){
+  var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = " + uid + " AND hid = " + hid + ")";
+  connection.query(query_str, function(error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
-      res.send('Criterion added.');
-      console.log('Added Criterion to table: ' + hid + ', ' + name);
+      if (results.length >= 1) {
+        var query_str = "INSERT INTO Criteria (hid, name) VALUES('" + hid + "', '" + name + "');";
+        connection.query(query_str, function(error, results, fields){
+          if (error) {
+            throw error
+            res.status(500).send('Error: ' + error.code);
+            console.log('Error: ' + error.code);
+          } else {
+            res.send('Criterion added.');
+            console.log('Added Criterion to house: ' + hid);
+          }
+        });
+      } else {
+        res.status(500).send('Access to criteria for this house is not permitted.');
+        console.log('Invalid house access for user: ' + uid);
+      }
     }
   });
-})
+});
 
 
 // Get a list of criteria for a house
@@ -277,7 +286,7 @@ app.post('/api/getCriteria', function(req, res) {
   }
 
   var uid = claims['uid'];
-  var hid = req.body["hid"];
+  var hid = req.body['hid'];
 
   var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = " + uid + " AND hid = " + hid + ")";
   connection.query(query_str, function(error, results, fields) {
@@ -297,7 +306,7 @@ app.post('/api/getCriteria', function(req, res) {
         });
       } else {
         res.status(500).send('Access to criteria for this house is not permitted.');
-        console.log("Invalid house access for user: " + uid);
+        console.log('Invalid house access for user: ' + uid);
       }
     }
   });
@@ -314,13 +323,12 @@ app.post('/api/deleteCriteria', function(req, res) {
   }
 
   var uid = claims['uid'];
-  var id = req.body["id"];
-  var hid = req.body["hid"];
+  var id = req.body['id'];
+  var hid = req.body['hid'];
 
   var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = " + uid + " AND hid = " + hid + ")";
   connection.query(query_str, function(error, results, fields) {
     if (error) {
-      throw error
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
@@ -328,17 +336,16 @@ app.post('/api/deleteCriteria', function(req, res) {
         var query_str = "DELETE FROM Criteria WHERE (id = " + id + " AND hid = " + hid + ");";
         connection.query(query_str, function(error, results, fields) {
           if (error) {
-            throw error
             res.status(500).send('Error: ' + error.code);
             console.log('Error: ' + error.code);
           } else {
-            res.send("Criteria deleted.");
-            console.log("Deleted criteria with id: " + id);
+            res.send('Criteria deleted.');
+            console.log('Deleted criteria with id: ' + id);
           }
         });
       } else {
         res.status(500).send('Deletion of this criteria not permitted.');
-        console.log("Invalid criteria access for user: " + uid);
+        console.log('Invalid criteria access for user: ' + uid);
       }
     }
   });
