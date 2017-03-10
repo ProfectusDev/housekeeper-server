@@ -61,6 +61,10 @@ function decodeToken(authHeader) {
   }
 }
 
+function checkClaims(claims) {
+  return (claims !== null && "uid" in claims)
+}
+
 // Create new user and add to the database
 app.post('/api/register', function(req, res) {
   var email = req.body['email'];
@@ -81,7 +85,7 @@ app.post('/api/register', function(req, res) {
       connection.query(query_str, function (error, results, fields) {
         var id = results[0]['LAST_INSERT_ID()'];
         var token = jwt.sign({
-          user_id: id
+          uid: id
         }, secret, {expiresIn: '1h'});
         res.send({'token': token});
       });
@@ -103,7 +107,7 @@ app.post('/api/login', function(req, res) {
     } else if (results[0]['password'] === password) {
       var id = results[0]['id'];
       var token = jwt.sign({
-        user_id: id
+        uid: id
       }, secret, {expiresIn: '1h'});
       res.send({'token' : token});
       console.log('Logged in user with email: ' + email);
@@ -118,13 +122,13 @@ app.post('/api/login', function(req, res) {
 app.post('/api/addHouse', function(req, res) {
   var authHeader = req.headers.authorization;
   var claims = decodeToken(authHeader);
-  if (claims === null) {
+  if (!checkClaims(claims)) {
     res.status(403).send('Forbidden.');
     return;
   }
 
   var address = req.body['address'];
-  var user_id = claims['user_id'];
+  var uid = claims['uid'];
 
   var query_str = "INSERT INTO Houses (address) VALUES('" + address + "');";
   connection.query(query_str, function (error, results, fields) {
@@ -139,7 +143,7 @@ app.post('/api/addHouse', function(req, res) {
           console.log('Error: ' + error.code);
         } else {
           var hid = results[0]['LAST_INSERT_ID()'];
-          query_str = "INSERT INTO UserHouseRelationship (id, hid) VALUES('" + user_id + "','" + hid + "');";
+          query_str = "INSERT INTO UserHouseRelationship (id, hid) VALUES('" + uid + "','" + hid + "');";
           connection.query(query_str, function (error, results, fields) {
             if (error) {
               res.status(500).send('Error: ' + error.code);
@@ -164,9 +168,9 @@ app.get('/api/getHouses' , function(req, res) {
     return;
   }
 
-  var user_id = claims['user_id'];
+  var uid = claims['uid'];
 
-  var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = '" + user_id + "');";
+  var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = '" + uid + "');";
   connection.query(query_str, function (error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
@@ -202,31 +206,29 @@ app.post('/api/deleteHouse', function(req, res) {
     return;
   }
 
-  var user_id = claims['user_id'];
-  var house_id = req.body["hid"];
+  var uid = claims['uid'];
+  var hid = req.body["hid"];
 
-  var query_str = "DELETE FROM UserHouseRelationship WHERE (id = " + user_id + " AND hid = " + house_id + ");"
+  var query_str = "DELETE FROM UserHouseRelationship WHERE (id = " + uid + " AND hid = " + hid + ");"
   connection.query(query_str, function(error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
-      res.send('Successfully Removed House');
-      console.log('Removed House from List: ' + house_id);
       if (results["affectedRows"] > 0) {
-        var query_str = "DELETE FROM Houses WHERE (hid = '" + house_id + "');";
+        var query_str = "DELETE FROM Houses WHERE (hid = '" + hid + "');";
         connection.query(query_str, function(error, results, fields) {
           if (error) {
             res.status(500).send('Error: ' + error.code);
             console.log('Error: ' + error.code);
           } else {
             res.send('Successfully removed house.');
-            console.log('Removed house with id: ' + house_id);
+            console.log('Removed house with id: ' + hid);
           }
         });
       } else {
         res.status(500).send('Invalid hid.');
-        console.log('Could not remove house with id: ' + house_id);
+        console.log('Could not remove house with id: ' + hid);
       }
     }
   });
@@ -236,12 +238,13 @@ app.post('/api/deleteHouse', function(req, res) {
 // add a criteria object to a House
 app.post('/api/addCriterion', function(req, res) {
   var authHeader = req.headers.authorization;
-  if (!isValidToken(authHeader)) {
+  var claims = decodeToken(authHeader);
+  if (claims === null) {
     res.status(403).send('Forbidden.');
     return;
   }
 
-  // Parameters for entry passed into 'req' object
+  var uid
   var hid = req.body['hid'];
   var name = req.body['name'];
   var category = req.body['category'];
@@ -273,16 +276,29 @@ app.post('/api/getCriteria', function(req, res) {
     return;
   }
 
-  var user_id = claims['user_id'];
-  var house_id = req.body["hid"];
+  var uid = claims['uid'];
+  var hid = req.body["hid"];
 
-  var query_str = "SELECT * FROM Criteria WHERE (hid = " + house_id + " AND EXISTS(SELECT 1 FROM UserHouseRelationship WHERE (id = " + user_id + " AND hid = " + house_id + ")));"
+  var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = " + uid + " AND hid = " + hid + ")";
   connection.query(query_str, function(error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
-      res.send(results)
+      if (results.length >= 1) {
+        var query_str = "SELECT * FROM Criteria WHERE (hid = " + hid + ") ORDER BY category ASC, name ASC;";
+        connection.query(query_str, function(error, results, fields) {
+          if (error) {
+            res.status(500).send('Error: ' + error.code);
+            console.log('Error: ' + error.code);
+          } else {
+            res.send(results);
+          }
+        });
+      } else {
+        res.status(500).send('Access to criteria for this house is not permitted.');
+        console.log("Invalid house access for user: " + uid);
+      }
     }
   });
 });
@@ -290,16 +306,40 @@ app.post('/api/getCriteria', function(req, res) {
 
 // Remove Criterion from the Criteria table
 app.post('/api/deleteCriteria', function(req, res) {
-  var house_id = req.body['hid'];
-  var name = req.body["name"];
-  var query_str = "DELETE FROM Criteria WHERE (hid = '" + house_id + "', name = '" + name + "');";
-  connection.query(query_str, function(error, results, fields){
+  var authHeader = req.headers.authorization;
+  var claims = decodeToken(authHeader);
+  if (!checkClaims(claims)) {
+    res.status(403).send('Forbidden');
+    return;
+  }
+
+  var uid = claims['uid'];
+  var id = req.body["id"];
+  var hid = req.body["hid"];
+
+  var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = " + uid + " AND hid = " + hid + ")";
+  connection.query(query_str, function(error, results, fields) {
     if (error) {
+      throw error
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
-      res.send('Successfully Removed Criterion');
-      console.log('Removed Criterion from table: ' + house_id+ ', ' + name);
+      if (results.length >= 1) {
+        var query_str = "DELETE FROM Criteria WHERE (id = " + id + " AND hid = " + hid + ");";
+        connection.query(query_str, function(error, results, fields) {
+          if (error) {
+            throw error
+            res.status(500).send('Error: ' + error.code);
+            console.log('Error: ' + error.code);
+          } else {
+            res.send("Criteria deleted.");
+            console.log("Deleted criteria with id: " + id);
+          }
+        });
+      } else {
+        res.status(500).send('Deletion of this criteria not permitted.');
+        console.log("Invalid criteria access for user: " + uid);
+      }
     }
   });
 })
@@ -313,15 +353,15 @@ app.post('/api/logout', function(req,res) {
 
 // Remove user from the database
 app.post('/api/deleteUser', function (req, res) {
-  var user_id = req.body["id"];
-  var query_str = "DELETE FROM Users WHERE (id = '" + user_id + "');"
+  var uid = req.body["id"];
+  var query_str = "DELETE FROM Users WHERE (id = '" + uid + "');"
   connection.query(query_str, function(error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
       res.send('Successfully Removed User');
-      console.log('Removed User from the HouseKeeper Database: ' + user_id);
+      console.log('Removed User from the HouseKeeper Database: ' + uid);
     }
   });
 });
