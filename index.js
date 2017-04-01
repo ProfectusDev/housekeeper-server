@@ -19,6 +19,7 @@ var db_config = {
 
 var connection;
 
+
 function handleDisconnect() {
   connection = mysql.createConnection(db_config);
 
@@ -233,6 +234,35 @@ app.post('/api/deleteHouse', function(req, res) {
     }
   });
 })
+
+// Method to manage the Dream House Template in the 'Houses' table in the database
+//   If no current data on the Dream House for the current User exists, the Dream House is added to a new section
+//   If the current data matches the ID of an existing Dream House, the data in the existing Dream House
+//     is updated with data from the curretn req and res elements
+// @author John Fiorentino
+app.post('/api/manageDreamHouse', function(req, res) {
+  var authHeader = req.headers.authorization;
+  var claims = decodeToken(authHeader);
+  if (claims === null) {
+    res.status(403).send('Forbidden');
+    return;
+  }
+
+  var uid = claims['uid'];
+  var hid = req.body["hid"];
+
+});
+
+// Method to retrieve the Dream House Template
+// @author John Fiorentino
+app.get('/api/getDreamHouse', function(req, res) {
+  var authHeader = req.headers.authorization;
+  var claims = decodeToken(authHeader);
+  if (claims === null) {
+    res.status(403).send('Forbidden');
+    return;
+  }
+});
 
 
 // add a criteria object to a House
