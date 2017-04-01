@@ -19,6 +19,7 @@ var db_config = {
 
 var connection;
 
+
 function handleDisconnect() {
   connection = mysql.createConnection(db_config);
 
@@ -234,6 +235,35 @@ app.post('/api/deleteHouse', function(req, res) {
   });
 })
 
+// Method to manage the Dream House Template in the 'Houses' table in the database
+//   If no current data on the Dream House for the current User exists, the Dream House is added to a new section
+//   If the current data matches the ID of an existing Dream House, the data in the existing Dream House
+//     is updated with data from the curretn req and res elements
+// @author John Fiorentino
+app.post('/api/manageDreamHouse', function(req, res) {
+  var authHeader = req.headers.authorization;
+  var claims = decodeToken(authHeader);
+  if (claims === null) {
+    res.status(403).send('Forbidden');
+    return;
+  }
+
+  var uid = claims['uid'];
+  var hid = req.body["hid"];
+
+});
+
+// Method to retrieve the Dream House Template
+// @author John Fiorentino
+app.get('/api/getDreamHouse', function(req, res) {
+  var authHeader = req.headers.authorization;
+  var claims = decodeToken(authHeader);
+  if (claims === null) {
+    res.status(403).send('Forbidden');
+    return;
+  }
+});
+
 
 // add a criteria object to a House
 app.post('/api/addCriterion', function(req, res) {
@@ -247,17 +277,19 @@ app.post('/api/addCriterion', function(req, res) {
   var uid = claims['uid']
   var hid = req.body['hid'];
   var name = req.body['name'];
-  // var category = req.body['category'];
+  var category = req.body['category'];
 
-  var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = " + uid + " AND hid = " + hid + ")";
-  connection.query(query_str, function(error, results, fields) {
+  if (category == null) {
+    category = 'other'
+  }
+
+  connection.query('SELECT * FROM UserHouseRelationship WHERE (id = ? AND hid = ?)', [uid, hid], function(error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
       if (results.length >= 1) {
-        var query_str = "INSERT INTO Criteria (hid, name) VALUES('" + hid + "', '" + name + "');";
-        connection.query(query_str, function(error, results, fields){
+        connection.query('INSERT INTO Criteria (hid, name, category) VALUES(?, ?, ?)', [hid, name, category], function(error, results, fields){
           if (error) {
             throw error
             res.status(500).send('Error: ' + error.code);
@@ -314,7 +346,7 @@ app.post('/api/getCriteria', function(req, res) {
 
 
 // Remove Criterion from the Criteria table
-app.post('/api/deleteCriteria', function(req, res) {
+app.post('/api/deleteCriterion', function(req, res) {
   var authHeader = req.headers.authorization;
   var claims = decodeToken(authHeader);
   if (!checkClaims(claims)) {
@@ -326,15 +358,13 @@ app.post('/api/deleteCriteria', function(req, res) {
   var id = req.body['id'];
   var hid = req.body['hid'];
 
-  var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = " + uid + " AND hid = " + hid + ")";
-  connection.query(query_str, function(error, results, fields) {
+  connection.query('SELECT * FROM UserHouseRelationship WHERE (id = ? AND hid = ?)', [uid, hid], function(error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
       if (results.length >= 1) {
-        var query_str = "DELETE FROM Criteria WHERE (id = " + id + " AND hid = " + hid + ");";
-        connection.query(query_str, function(error, results, fields) {
+        connection.query('DELETE FROM Criteria WHERE (id = ? AND hid = ?)', [id, hid], function(error, results, fields) {
           if (error) {
             res.status(500).send('Error: ' + error.code);
             console.log('Error: ' + error.code);
@@ -351,6 +381,49 @@ app.post('/api/deleteCriteria', function(req, res) {
   });
 })
 
+// Update criteria value
+app.post('/api/updateCriterion', function(req, res) {
+  var authHeader = req.headers.authorization;
+  var claims = decodeToken(authHeader);
+  if (!checkClaims(claims)) {
+    res.status(403).send('Forbidden');
+    return;
+  }
+
+  var uid = claims['uid'];
+  var id = req.body['id'];
+  var hid = req.body['hid'];
+  var value = req.body['value'];
+
+  if (value == null) {
+    res.status(500).send('Error: must send a value to update');
+    console.log('Invalid parameters for update criteria for user: ' + uid);
+    return;
+  }
+
+  connection.query('SELECT * FROM UserHouseRelationship WHERE (id = ? AND hid = ?)', [uid, hid], function(error, results, fields) {
+    if (error) {
+      res.status(500).send('Error: ' + error.code);
+      console.log('Error: ' + error.code);
+    } else {
+      if (results.length >= 1) {
+        connection.query('UPDATE Criteria SET value = ? WHERE (id = ? AND hid = ?)', [value, id, hid], function(error, results, fields) {
+          if (error) {
+            res.status(500).send('Error: ' + error.code);
+            console.log('Error: ' + error.code);
+          } else {
+            res.send('Criteria updated.');
+            console.log('Updated criteria with id: ' + id);
+          }
+        });
+      } else {
+        res.status(500).send('Modifying of this criteria not permitted.');
+        console.log('Invalid criteria access for user: ' + uid);
+      }
+    }
+  });
+});
+
 
 // Logout a user and mark their session token as 'inactive'
 app.post('/api/logout', function(req,res) {
@@ -361,8 +434,7 @@ app.post('/api/logout', function(req,res) {
 // Remove user from the database
 app.post('/api/deleteUser', function (req, res) {
   var uid = req.body["id"];
-  var query_str = "DELETE FROM Users WHERE (id = '" + uid + "');"
-  connection.query(query_str, function(error, results, fields) {
+  connection.query("DELETE FROM UserHouseRelationship WHERE (id = ? AND hid = ?)", [uid, hid], function(error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
