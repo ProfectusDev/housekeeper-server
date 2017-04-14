@@ -98,6 +98,7 @@ app.post('/api/register', function(req, res) {
 app.post('/api/login', function(req, res) {
   var email = req.body['email'];
   var password = req.body['password'];
+  var admin = req.body['admin'];
   var query_str = "SELECT id, password FROM Users WHERE (email = '" + email + "');"
   connection.query(query_str, function (error, results, fields) {
     if (error) {
@@ -111,12 +112,48 @@ app.post('/api/login', function(req, res) {
         uid: id
       }, secret, {expiresIn: '1h'});
       res.send({'token' : token});
-      console.log('Logged in user with email: ' + email);
+
+      if (admin === 1) {
+        console.console.log("Logged in as an Administrator with email: " + email);
+        );
+      } else {
+        console.log('Logged in user with email: ' + email);
+      }
     } else {
       res.status(500).send('Email and password do not match.');
     }
   });
 })
+
+// ADMIN Method
+// Retrieves the list of current users in the HouseKeeper system
+// @author: John Fiorentino
+app.get('/api/getUsers', function(req, res) {
+  var authHeader = req.headers.authorization;
+  var claims = decodeToken(authHeader);
+  if (claims === null) {
+    res.status(403).send('Forbidden.');
+    return;
+  }
+
+  var admin = req.body['admin'];
+  var email = req.body['email'];
+  if (admin === 0) {
+    console.console.log("User with email " + " is not authorized for this process.");
+    return;
+  } else {
+    var query_str = "SELECT * FROM UserHouseRelationship WHERE (id != '" + email + "');";
+    connection.query(query_str, function(error, results, fields) {
+      if (error) {
+        res.status(500).send('Error' + error.code);
+        console.console.log("Errror" + error.code);
+      } else {
+        res.send('User List returned.');
+        console.log('Retrieved current list of HouseKeeper users.');
+      }
+    });
+  }
+});
 
 
 // Add a House object to the user profile
