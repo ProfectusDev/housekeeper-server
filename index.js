@@ -70,8 +70,7 @@ function checkClaims(claims) {
 app.post('/api/register', function(req, res) {
   var email = req.body['email'];
   var password = req.body['password'];
-  var query_str = "INSERT INTO Users (email, password) VALUES ('" + email + "', '" + password + "');"
-  connection.query(query_str, function (error, results, fields) {
+  connection.query('INSERT INTO Users (email, password) VALUES (?, ?)', [email,password], function (error, results, fields) {
     if (error) {
       if (error.code === 'ER_DUP_ENTRY') {
         res.status(500).send('This email is already in use.');
@@ -82,8 +81,7 @@ app.post('/api/register', function(req, res) {
       }
     } else {
       console.log('Added user with email: ' + email);
-      query_str = "SELECT LAST_INSERT_ID();"
-      connection.query(query_str, function (error, results, fields) {
+      connection.query('SELECT LAST_INSERT_ID()', function (error, results, fields) {
         var id = results[0]['LAST_INSERT_ID()'];
         var token = jwt.sign({
           uid: id
@@ -98,8 +96,7 @@ app.post('/api/register', function(req, res) {
 app.post('/api/login', function(req, res) {
   var email = req.body['email'];
   var password = req.body['password'];
-  var query_str = "SELECT id, password FROM Users WHERE (email = '" + email + "');"
-  connection.query(query_str, function (error, results, fields) {
+  connection.query('SELECT id, password FROM Users WHERE (email = ?)', email, function (error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
@@ -162,21 +159,18 @@ app.post('/api/addHouse', function(req, res) {
   var address = req.body['address'];
   var uid = claims['uid'];
 
-  var query_str = "INSERT INTO Houses (address) VALUES('" + address + "');";
-  connection.query(query_str, function (error, results, fields) {
+  connection.query('INSERT INTO Houses (address) VALUES(?)', address, function (error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
-      query_str = "SELECT LAST_INSERT_ID();"
-      connection.query(query_str, function (error, results, fields) {
+      connection.query('SELECT LAST_INSERT_ID()', function (error, results, fields) {
         if (error) {
           res.status(500).send('Error: ' + error.code);
           console.log('Error: ' + error.code);
         } else {
           var hid = results[0]['LAST_INSERT_ID()'];
-          query_str = "INSERT INTO UserHouseRelationship (id, hid) VALUES('" + uid + "','" + hid + "');";
-          connection.query(query_str, function (error, results, fields) {
+          connection.query('INSERT INTO UserHouseRelationship (id, hid) VALUES(?, ?)', [uid, hid], function (error, results, fields) {
             if (error) {
               res.status(500).send('Error: ' + error.code);
               console.log('Error: ' + error.code);
@@ -202,8 +196,7 @@ app.get('/api/getHouses' , function(req, res) {
 
   var uid = claims['uid'];
 
-  var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = '" + uid + "');";
-  connection.query(query_str, function (error, results, fields) {
+  connection.query('SELECT * FROM UserHouseRelationship WHERE (id = ?)', uid, function (error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
@@ -241,15 +234,14 @@ app.post('/api/deleteHouse', function(req, res) {
   var uid = claims['uid'];
   var hid = req.body['hid'];
 
-  var query_str = "DELETE FROM UserHouseRelationship WHERE (id = " + uid + " AND hid = " + hid + ");"
-  connection.query(query_str, function(error, results, fields) {
+  var query_str = ";"
+  connection.query('DELETE FROM UserHouseRelationship WHERE (id = ? AND hid = ?)', [uid, hid], function(error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
       if (results["affectedRows"] > 0) {
-        var query_str = "DELETE FROM Houses WHERE (hid = '" + hid + "');";
-        connection.query(query_str, function(error, results, fields) {
+        connection.query('DELETE FROM Houses WHERE (hid = ?)', hid, function(error, results, fields) {
           if (error) {
             res.status(500).send('Error: ' + error.code);
             console.log('Error: ' + error.code);
@@ -351,15 +343,13 @@ app.post('/api/getCriteria', function(req, res) {
   var uid = claims['uid'];
   var hid = req.body['hid'];
 
-  var query_str = "SELECT * FROM UserHouseRelationship WHERE (id = " + uid + " AND hid = " + hid + ")";
-  connection.query(query_str, function(error, results, fields) {
+  connection.query('SELECT * FROM UserHouseRelationship WHERE (id = ? AND hid = ?)', [uid, hid], function(error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
       if (results.length >= 1) {
-        var query_str = "SELECT * FROM Criteria WHERE (hid = " + hid + ") ORDER BY category ASC, name ASC;";
-        connection.query(query_str, function(error, results, fields) {
+        connection.query('SELECT * FROM Criteria WHERE (hid = ?) ORDER BY category ASC, name ASC', hid, function(error, results, fields) {
           if (error) {
             res.status(500).send('Error: ' + error.code);
             console.log('Error: ' + error.code);
@@ -465,7 +455,7 @@ app.post('/api/logout', function(req,res) {
 // Remove user from the database
 app.post('/api/deleteUser', function (req, res) {
   var uid = req.body["id"];
-  connection.query("DELETE FROM UserHouseRelationship WHERE (id = ? AND hid = ?)", [uid, hid], function(error, results, fields) {
+  connection.query('DELETE FROM UserHouseRelationship WHERE (id = ? AND hid = ?)', [uid, hid], function(error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
