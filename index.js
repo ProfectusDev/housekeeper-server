@@ -80,13 +80,25 @@ app.post('/api/register', function(req, res) {
         console.log('Error: ' + error.code);
       }
     } else {
-      console.log('Added user with email: ' + email);
-      connection.query('SELECT LAST_INSERT_ID()', function (error, results, fields) {
-        var id = results[0]['LAST_INSERT_ID()'];
-        var token = jwt.sign({
-          uid: id
-        }, secret, {expiresIn: '1h'});
-        res.send({'token': token});
+      var uid = results.insertId;
+      var address = 'Dream House'
+      connection.query('INSERT INTO Houses (address) VALUES(?)', address, function (error, results, fields) {
+        if (error) {
+          res.status(500).send('Error: ' + error.code);
+          console.log('Error: ' + error.code);
+        } else {
+          var dhid = results.insertId;
+          connection.query('UPDATE Users SET `dream hid` = ? WHERE (id = ?)', [dhid, uid], function (error, results, fields) {
+            if (error) {
+              res.status(500).send('Error: ' + error.code);
+              console.log('Error: ' + error.code);
+            } else {
+              console.log('Added user with email: ' + email);
+              var token = jwt.sign({uid: uid}, secret, {expiresIn: '1h'});
+              res.send({'token': token});
+            }
+          });
+        }
       });
     }
   });
@@ -102,50 +114,20 @@ app.post('/api/login', function(req, res) {
       console.log('Error: ' + error.code);
     } else if (results.length === 0) {
       res.status(500).send('This email has not been registered.');
+      console.log('Invalid login attempt.');
     } else if (results[0]['password'] === password) {
-      var id = results[0]['id'];
+      var uid = results[0]['id'];
       var token = jwt.sign({
-        uid: id
+        uid: uid
       }, secret, {expiresIn: '1h'});
       res.send({'token' : token});
       console.log('Logged in user with email: ' + email);
     } else {
       res.status(500).send('Email and password do not match.');
+      console.log('Invalid login attempt.');
     }
   });
 })
-
-// ADMIN Method
-// Retrieves the list of current users in the HouseKeeper system
-// @author: John Fiorentino
-
-// app.get('/api/getUsers', function(req, res) {
-//   var authHeader = req.headers.authorization;
-//   var claims = decodeToken(authHeader);
-//   if (claims === null) {
-//     res.status(403).send('Forbidden.');
-//     return;
-//   }
-//
-//   var admin = req.body['admin'];
-//   var email = req.body['email'];
-//   if (admin === 0) {
-//     console.console.log("User with email " + " is not authorized for this process.");
-//     return;
-//   } else {
-//     var query_str = "SELECT * FROM UserHouseRelationship WHERE (id != '" + email + "');";
-//     connection.query(query_str, function(error, results, fields) {
-//       if (error) {
-//         res.status(500).send('Error' + error.code);
-//         console.console.log("Errror" + error.code);
-//       } else {
-//         res.send('User List returned.');
-//         console.log('Retrieved current list of HouseKeeper users.');
-//       }
-//     });
-//   }
-// });
-
 
 // Add a House object to the user profile
 app.post('/api/addHouse', function(req, res) {
@@ -159,26 +141,21 @@ app.post('/api/addHouse', function(req, res) {
   var address = req.body['address'];
   var uid = claims['uid'];
 
-  connection.query('INSERT INTO Houses (address) VALUES(?)', address, function (error, results, fields) {
+  connection.query('INSERT INTO Houses (address) VALUES(?)', address,
+  function (error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
-      connection.query('SELECT LAST_INSERT_ID()', function (error, results, fields) {
+      var hid = results.insertId;
+      connection.query('INSERT INTO UserHouseRelationship (id, hid) VALUES(?, ?)', [uid, hid],
+      function (error, results, fields) {
         if (error) {
           res.status(500).send('Error: ' + error.code);
           console.log('Error: ' + error.code);
         } else {
-          var hid = results[0]['LAST_INSERT_ID()'];
-          connection.query('INSERT INTO UserHouseRelationship (id, hid) VALUES(?, ?)', [uid, hid], function (error, results, fields) {
-            if (error) {
-              res.status(500).send('Error: ' + error.code);
-              console.log('Error: ' + error.code);
-            } else {
-              res.send('House added.');
-              console.log('Added House with address: ' + address);
-            }
-          });
+          res.send('House added.');
+          console.log('Added House with address: ' + address);
         }
       });
     }
@@ -216,6 +193,7 @@ app.get('/api/getHouses' , function(req, res) {
           console.log('Error: ' + error.code);
         } else {
           res.send(results);
+          console.log('Sent houses to user: ' + uid);
         }
       });
     }
@@ -240,7 +218,7 @@ app.post('/api/deleteHouse', function(req, res) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
     } else {
-      if (results["affectedRows"] > 0) {
+      if (results.affectedRows > 0) {
         connection.query('DELETE FROM Houses WHERE (hid = ?)', hid, function(error, results, fields) {
           if (error) {
             res.status(500).send('Error: ' + error.code);
@@ -258,24 +236,6 @@ app.post('/api/deleteHouse', function(req, res) {
   });
 })
 
-// Method to manage the Dream House Template in the 'Houses' table in the database
-//   If no current data on the Dream House for the current User exists, the Dream House is added to a new section
-//   If the current data matches the ID of an existing Dream House, the data in the existing Dream House
-//     is updated with data from the curretn req and res elements
-// @author John Fiorentino
-app.post('/api/manageDreamHouse', function(req, res) {
-  var authHeader = req.headers.authorization;
-  var claims = decodeToken(authHeader);
-  if (claims === null) {
-    res.status(403).send('Forbidden');
-    return;
-  }
-
-  var uid = claims['uid'];
-  var hid = req.body["hid"];
-
-});
-
 // Method to retrieve the Dream House Template
 // @author John Fiorentino
 app.get('/api/getDreamHouse', function(req, res) {
@@ -285,6 +245,29 @@ app.get('/api/getDreamHouse', function(req, res) {
     res.status(403).send('Forbidden');
     return;
   }
+
+  var uid = claims['uid'];
+
+  connection.query('SELECT * FROM Users WHERE (id = ?)', uid,
+  function(error, results, fields){
+    if (error) {
+      res.status(500).send('Error: ' + error.code);
+      console.log('Error: ' + error.code);
+    } else {
+      var dhid = results[0]['dream hid'];
+      connection.query('SELECT * FROM Houses WHERE (hid = ?)', dhid,
+      function(error, results, fields) {
+        if (error) {
+          res.status(500).send('Error: ' + error.code);
+          console.log('Error: ' + error.code);
+        } else {
+          console.log(results[0]);
+          res.send({'dreamHouse': results[0]});
+          console.log('Sent dream house with id: ' + dhid);
+        }
+      });
+    }
+  });
 });
 
 
