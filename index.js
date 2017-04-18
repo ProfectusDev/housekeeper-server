@@ -93,9 +93,17 @@ app.post('/api/register', function(req, res) {
               res.status(500).send('Error: ' + error.code);
               console.log('Error: ' + error.code);
             } else {
-              console.log('Added user with email: ' + email);
-              var token = jwt.sign({uid: uid}, secret, {expiresIn: '1h'});
-              res.send({'token': token});
+              connection.query('INSERT INTO UserHouseRelationship (id, hid, isDreamHouse) VALUES(?, ?, 1)', [uid, dhid],
+              function (error, results, fields) {
+                if (error) {
+                  res.status(500).send('Error: ' + error.code);
+                  console.log('Error: ' + error.code);
+                } else {
+                  console.log('Added user with id: ' + uid);
+                  var token = jwt.sign({uid: uid}, secret, {expiresIn: '1h'});
+                  res.send({'token': token});
+                }
+              });
             }
           });
         }
@@ -121,7 +129,7 @@ app.post('/api/login', function(req, res) {
         uid: uid
       }, secret, {expiresIn: '1h'});
       res.send({'token' : token});
-      console.log('Logged in user with email: ' + email);
+      console.log('Logged in user with id: ' + uid);
     } else {
       res.status(500).send('Email and password do not match.');
       console.log('Invalid login attempt.');
@@ -154,8 +162,8 @@ app.post('/api/addHouse', function(req, res) {
           res.status(500).send('Error: ' + error.code);
           console.log('Error: ' + error.code);
         } else {
-          res.send('House added.');
-          console.log('Added House with address: ' + address);
+          res.send({'hid': hid});
+          console.log('Added House with id: ' + hid);
         }
       });
     }
@@ -173,7 +181,8 @@ app.get('/api/getHouses' , function(req, res) {
 
   var uid = claims['uid'];
 
-  connection.query('SELECT * FROM UserHouseRelationship WHERE (id = ?)', uid, function (error, results, fields) {
+  connection.query('SELECT * FROM UserHouseRelationship WHERE (id = ? and isDreamHouse = 0)', uid,
+  function (error, results, fields) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
@@ -187,7 +196,8 @@ app.get('/api/getHouses' , function(req, res) {
         query_str += ("'" + hid + "',");
       }
       query_str = query_str.substr(0, query_str.length - 1) + ");";
-      connection.query(query_str, function (error, results, fields) {
+      connection.query(query_str,
+        function (error, results, fields) {
         if (error) {
           res.status(500).send('Error: ' + error.code);
           console.log('Error: ' + error.code);
@@ -270,7 +280,6 @@ app.get('/api/getDreamHouse', function(req, res) {
   });
 });
 
-
 // add a criteria object to a House
 app.post('/api/addCriterion', function(req, res) {
   var authHeader = req.headers.authorization;
@@ -293,22 +302,20 @@ app.post('/api/addCriterion', function(req, res) {
     if (error) {
       res.status(500).send('Error: ' + error.code);
       console.log('Error: ' + error.code);
+    } else if (results.length >= 1) {
+      connection.query('INSERT INTO Criteria (hid, name, category) VALUES(?, ?, ?)', [hid, name, category], function(error, results, fields){
+        if (error) {
+          throw error
+          res.status(500).send('Error: ' + error.code);
+          console.log('Error: ' + error.code);
+        } else {
+          res.send('Criterion added.');
+          console.log('Added Criterion to house: ' + hid);
+        }
+      });
     } else {
-      if (results.length >= 1) {
-        connection.query('INSERT INTO Criteria (hid, name, category) VALUES(?, ?, ?)', [hid, name, category], function(error, results, fields){
-          if (error) {
-            throw error
-            res.status(500).send('Error: ' + error.code);
-            console.log('Error: ' + error.code);
-          } else {
-            res.send('Criterion added.');
-            console.log('Added Criterion to house: ' + hid);
-          }
-        });
-      } else {
-        res.status(500).send('Access to criteria for this house is not permitted.');
-        console.log('Invalid house access for user: ' + uid);
-      }
+      res.status(500).send('Access to criteria for this house is not permitted.');
+      console.log('Invalid house access for user: ' + uid);
     }
   });
 });
@@ -338,6 +345,7 @@ app.post('/api/getCriteria', function(req, res) {
             console.log('Error: ' + error.code);
           } else {
             res.send(results);
+            console.log('Sent criteria for house: ' + hid);
           }
         });
       } else {
@@ -444,7 +452,7 @@ app.post('/api/deleteUser', function (req, res) {
       console.log('Error: ' + error.code);
     } else {
       res.send('Successfully Removed User');
-      console.log('Removed User from the HouseKeeper Database: ' + uid);
+      console.log('Removed user with id: ' + uid);
     }
   });
 });
